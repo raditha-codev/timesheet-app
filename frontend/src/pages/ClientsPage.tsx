@@ -41,10 +41,10 @@ const ClientsPage: React.FC = () => {
 
   const { data: clientsData, isLoading } = useClients();
 
-  const invalidateClientDeletes = () => {
+  const refreshAfterClientDelete = () => {
+    queryClient.removeQueries({ queryKey: ['projects'] });
+    queryClient.removeQueries({ queryKey: ['workEntries'] });
     queryClient.invalidateQueries({ queryKey: CLIENTS_KEY });
-    queryClient.invalidateQueries({ queryKey: ['projects'] });
-    queryClient.invalidateQueries({ queryKey: ['workEntries'] });
   };
 
   const createMutation = useMutation({
@@ -75,7 +75,7 @@ const ClientsPage: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.deleteClient(id),
-    onSuccess: invalidateClientDeletes,
+    onSuccess: refreshAfterClientDelete,
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
       setError(error.response?.data?.error || 'Failed to delete client');
@@ -84,7 +84,7 @@ const ClientsPage: React.FC = () => {
 
   const deleteAllMutation = useMutation({
     mutationFn: () => apiClient.deleteAllClients(),
-    onSuccess: invalidateClientDeletes,
+    onSuccess: refreshAfterClientDelete,
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
       setError(error.response?.data?.error || 'Failed to delete all clients');
