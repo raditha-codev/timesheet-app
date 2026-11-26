@@ -26,8 +26,9 @@ import {
   Delete as DeleteIcon,
   DeleteSweep as DeleteSweepIcon,
 } from '@mui/icons-material';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import apiClient from '../api/client';
+import { CLIENTS_KEY, useClients } from '../hooks/useClients';
 import { type Client } from '../types/api';
 
 const ClientsPage: React.FC = () => {
@@ -38,16 +39,19 @@ const ClientsPage: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: clientsData, isLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => apiClient.getClients(),
-  });
+  const { data: clientsData, isLoading } = useClients();
+
+  const invalidateClientDeletes = () => {
+    queryClient.invalidateQueries({ queryKey: CLIENTS_KEY });
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['workEntries'] });
+  };
 
   const createMutation = useMutation({
     mutationFn: (clientData: { name: string; description?: string; department?: string; email?: string }) =>
       apiClient.createClient(clientData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: CLIENTS_KEY });
       handleClose();
     },
     onError: (err: unknown) => {
@@ -60,7 +64,7 @@ const ClientsPage: React.FC = () => {
     mutationFn: ({ id, data }: { id: number; data: { name?: string; description?: string; department?: string; email?: string } }) =>
       apiClient.updateClient(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: CLIENTS_KEY });
       handleClose();
     },
     onError: (err: unknown) => {
@@ -71,9 +75,7 @@ const ClientsPage: React.FC = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.deleteClient(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-    },
+    onSuccess: invalidateClientDeletes,
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
       setError(error.response?.data?.error || 'Failed to delete client');
@@ -82,9 +84,7 @@ const ClientsPage: React.FC = () => {
 
   const deleteAllMutation = useMutation({
     mutationFn: () => apiClient.deleteAllClients(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['clients'] });
-    },
+    onSuccess: invalidateClientDeletes,
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
       setError(error.response?.data?.error || 'Failed to delete all clients');

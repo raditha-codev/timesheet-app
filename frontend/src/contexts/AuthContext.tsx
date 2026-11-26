@@ -35,8 +35,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string) => {
     try {
       const response = await apiClient.login(email);
-      setUser(response.user);
       localStorage.setItem('userEmail', email);
+      queryClient.clear();
+      setUser(response.user);
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

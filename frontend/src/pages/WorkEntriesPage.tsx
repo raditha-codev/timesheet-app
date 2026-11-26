@@ -35,6 +35,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, isValid, parseISO } from 'date-fns';
 import apiClient from '../api/client';
+import { useClients } from '../hooks/useClients';
 import { type WorkEntry } from '../types/api';
 
 const WorkEntriesPage: React.FC = () => {
@@ -61,10 +62,7 @@ const WorkEntriesPage: React.FC = () => {
     queryFn: () => apiClient.getWorkEntries(),
   });
 
-  const { data: clientsData, isLoading: clientsLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => apiClient.getClients(),
-  });
+  const { data: clientsData, isLoading: clientsLoading } = useClients();
 
   const createMutation = useMutation({
     mutationFn: (entryData: { clientId: number; hours: number; description?: string; date: string }) =>
