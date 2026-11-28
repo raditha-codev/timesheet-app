@@ -29,16 +29,14 @@ import {
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
+import { useClients } from '../hooks/useClients';
 import { type ClientReport } from '../types/api';
 
 const ReportsPage: React.FC = () => {
   const [selectedClientId, setSelectedClientId] = useState<number>(0);
   const [error, setError] = useState('');
 
-  const { data: clientsData, isLoading: clientsLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => apiClient.getClients(),
-  });
+  const { data: clientsData, isLoading: clientsLoading } = useClients();
 
   const { data: reportData, isLoading: reportLoading } = useQuery({
     queryKey: ['clientReport', selectedClientId],

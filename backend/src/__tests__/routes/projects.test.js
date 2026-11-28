@@ -89,6 +89,14 @@ describe('Project Routes', () => {
       expect(mockDb.all).not.toHaveBeenCalled();
     });
 
+    test.each(['foo', ''])('returns 400 for an invalid status filter (%j)', async status => {
+      const response = await request(app).get('/api/projects').query({ status });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: expect.stringContaining('status') });
+      expect(mockDb.all).not.toHaveBeenCalled();
+    });
+
     test('handles database errors', async () => {
       mockDb.all.mockImplementation((query, params, callback) => callback(new Error('boom')));
 
@@ -172,6 +180,22 @@ describe('Project Routes', () => {
       ]);
     });
 
+    test('stores a valid leap day unchanged', async () => {
+      const startDate = '2024-02-29';
+      mockDb.get
+        .mockImplementationOnce((query, params, callback) => callback(null, { id: 3 }))
+        .mockImplementationOnce((query, params, callback) => callback(null, { ...project, start_date: startDate }));
+      mockDb.run.mockImplementation(function(query, params, callback) {
+        callback.call({ lastID: 1 }, null);
+      });
+
+      const response = await request(app).post('/api/projects').send({ ...validBody, startDate });
+
+      expect(response.status).toBe(201);
+      expect(response.body.project.start_date).toBe(startDate);
+      expect(mockDb.run.mock.calls[0][1][3]).toBe(startDate);
+    });
+
     test('rejects a client the user does not own', async () => {
       mockDb.get.mockImplementation((query, params, callback) => callback(null, undefined));
 
@@ -189,6 +213,8 @@ describe('Project Routes', () => {
       ['missing client', { ...validBody, clientId: undefined }],
       ['missing start date', { ...validBody, startDate: undefined }],
       ['invalid start date', { ...validBody, startDate: 'not-a-date' }],
+      ['impossible start date', { ...validBody, startDate: '2025-02-29' }],
+      ['start date with an offset', { ...validBody, startDate: '2024-03-01T00:00:00+14:00' }],
       ['unknown status', { ...validBody, status: 'archived' }]
     ])('returns 400 for %s', async (label, body) => {
       const response = await request(app).post('/api/projects').send(body);
@@ -210,6 +236,28 @@ describe('Project Routes', () => {
   });
 
   describe('PUT /api/projects/:id', () => {
+    test('stores a valid leap day unchanged', async () => {
+      const startDate = '2024-02-29';
+      mockDb.get
+        .mockImplementationOnce((query, params, callback) => callback(null, { id: 1 }))
+        .mockImplementationOnce((query, params, callback) => callback(null, { ...project, start_date: startDate }));
+      mockDb.run.mockImplementation((query, params, callback) => callback(null));
+
+      const response = await request(app).put('/api/projects/1').send({ startDate });
+
+      expect(response.status).toBe(200);
+      expect(response.body.project.start_date).toBe(startDate);
+      expect(mockDb.run.mock.calls[0][1]).toEqual([startDate, 1, 'test@example.com']);
+    });
+
+    test.each(['2025-02-29', '2024-03-01T00:00:00+14:00'])('rejects invalid start date %s', async startDate => {
+      const response = await request(app).put('/api/projects/1').send({ startDate });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('Validation error');
+      expect(mockDb.get).not.toHaveBeenCalled();
+    });
+
     test('updates status only', async () => {
       const updated = { ...project, status: 'completed' };
       mockDb.get

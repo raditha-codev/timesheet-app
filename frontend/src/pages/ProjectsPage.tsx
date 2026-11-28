@@ -29,14 +29,13 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { format, isValid, parseISO } from 'date-fns';
-import apiClient from '../api/client';
+import { useClients } from '../hooks/useClients';
 import { useCreateProject, useDeleteProject, useProjects, useUpdateProject } from '../hooks/useProjects';
-import { type Client, type Project, type ProjectStatus } from '../types/api';
+import { type Project, type ProjectStatus } from '../types/api';
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string; color: 'success' | 'default' | 'warning' }[] = [
   { value: 'active', label: 'Active', color: 'success' },
@@ -48,7 +47,7 @@ interface ProjectFormData {
   name: string;
   description: string;
   clientId: number;
-  startDate: Date;
+  startDate: Date | null;
   status: ProjectStatus;
 }
 
@@ -69,31 +68,31 @@ const errorMessage = (err: unknown, fallback: string) => {
 const ProjectsPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [startDateEdited, setStartDateEdited] = useState(false);
   const [formData, setFormData] = useState<ProjectFormData>(emptyForm);
   const [error, setError] = useState('');
 
   const { data: projectsData, isLoading: projectsLoading } = useProjects();
-  const { data: clientsData, isLoading: clientsLoading } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => apiClient.getClients(),
-  });
+  const { data: clientsData, isLoading: clientsLoading } = useClients();
 
   const createMutation = useCreateProject();
   const updateMutation = useUpdateProject();
   const deleteMutation = useDeleteProject();
 
   const projects = projectsData?.projects || [];
-  const clients: Client[] = clientsData?.clients || [];
+  const clients = clientsData?.clients || [];
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleOpen = (project?: Project) => {
+    setStartDateEdited(false);
     if (project) {
+      const localDate = parseISO(project.start_date);
       setEditingProject(project);
       setFormData({
         name: project.name,
         description: project.description || '',
         clientId: project.client_id,
-        startDate: parseISO(project.start_date),
+        startDate: isValid(localDate) && format(localDate, 'yyyy-MM-dd') === project.start_date ? localDate : null,
         status: project.status,
       });
     } else {
@@ -125,16 +124,10 @@ const ProjectsPage: React.FC = () => {
       return;
     }
 
-    if (!isValid(formData.startDate)) {
-      setError('Please enter a valid start date');
-      return;
-    }
-
     const data = {
       name: formData.name,
       description: formData.description,
       clientId: formData.clientId,
-      startDate: format(formData.startDate, 'yyyy-MM-dd'),
       status: formData.status,
     };
 
@@ -143,10 +136,22 @@ const ProjectsPage: React.FC = () => {
       onError: (err: unknown) => setError(errorMessage(err, editingProject ? 'Failed to update project' : 'Failed to create project')),
     };
 
-    if (editingProject) {
+    if (editingProject && !startDateEdited) {
       updateMutation.mutate({ id: editingProject.id, data }, options);
+      return;
+    }
+
+    if (!formData.startDate || !isValid(formData.startDate)) {
+      setError('Please enter a valid start date');
+      return;
+    }
+
+    const startDate = format(formData.startDate, 'yyyy-MM-dd');
+    if (editingProject) {
+      const update = startDate === editingProject.start_date ? data : { ...data, startDate };
+      updateMutation.mutate({ id: editingProject.id, data: update }, options);
     } else {
-      createMutation.mutate({ ...data, description: data.description || undefined }, options);
+      createMutation.mutate({ ...data, startDate, description: data.description || undefined }, options);
     }
   };
 
@@ -217,7 +222,7 @@ const ProjectsPage: React.FC = () => {
                             </Typography>
                           </TableCell>
                           <TableCell>{project.client_name}</TableCell>
-                          <TableCell>{format(parseISO(project.start_date), 'MMM dd, yyyy')}</TableCell>
+                          <TableCell>{project.start_date}</TableCell>
                           <TableCell>
                             <Chip label={status?.label ?? project.status} color={status?.color ?? 'default'} size="small" />
                           </TableCell>
@@ -309,12 +314,18 @@ const ProjectsPage: React.FC = () => {
               <DatePicker
                 label="Start Date"
                 value={formData.startDate}
-                onChange={(date) => date && setFormData({ ...formData, startDate: date })}
+                onChange={(date) => {
+                  setFormData({ ...formData, startDate: date });
+                  setStartDateEdited(true);
+                }}
                 slotProps={{
                   textField: {
                     fullWidth: true,
                     margin: 'dense',
-                    required: true,
+                    required: !editingProject || startDateEdited,
+                    helperText: editingProject && !startDateEdited && !formData.startDate
+                      ? `Stored date: ${editingProject.start_date}`
+                      : undefined,
                     disabled: isSaving,
                   },
                 }}

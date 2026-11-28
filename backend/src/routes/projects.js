@@ -1,7 +1,7 @@
 const express = require('express');
 const { getDatabase } = require('../database/init');
 const { authenticateUser } = require('../middleware/auth');
-const { projectSchema, updateProjectSchema } = require('../validation/schemas');
+const { projectSchema, updateProjectSchema, projectStatusSchema } = require('../validation/schemas');
 
 const router = express.Router();
 
@@ -11,8 +11,6 @@ const PROJECT_SELECT = `
   FROM projects p
   JOIN clients c ON p.client_id = c.id
 `;
-
-const toDateString = (date) => date.toISOString().slice(0, 10);
 
 // All routes require authentication
 router.use(authenticateUser);
@@ -57,9 +55,13 @@ router.get('/', (req, res) => {
     params.push(clientIdNum);
   }
 
-  if (status) {
+  if (status !== undefined) {
+    const { error, value } = projectStatusSchema.label('status').validate(status);
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
     query += ' AND p.status = ?';
-    params.push(status);
+    params.push(value);
   }
 
   query += ' ORDER BY p.name';
@@ -125,7 +127,7 @@ router.post('/', (req, res, next) => {
 
       db.run(
         'INSERT INTO projects (name, description, client_id, start_date, status, user_email) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, description || null, clientId, toDateString(startDate), status, req.userEmail],
+        [name, description || null, clientId, startDate, status, req.userEmail],
         function(err) {
           if (err) {
             console.error('Database error:', err);
@@ -192,7 +194,7 @@ router.put('/:id', (req, res, next) => {
 
           if (value.startDate !== undefined) {
             updates.push('start_date = ?');
-            values.push(toDateString(value.startDate));
+            values.push(value.startDate);
           }
 
           if (value.status !== undefined) {

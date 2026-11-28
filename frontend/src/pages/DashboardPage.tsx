@@ -17,14 +17,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import apiClient from '../api/client';
+import { useClients } from '../hooks/useClients';
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const { data: clientsData } = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => apiClient.getClients(),
-  });
+  const { data: clientsData } = useClients();
 
   const { data: workEntriesData } = useQuery({
     queryKey: ['workEntries'],
